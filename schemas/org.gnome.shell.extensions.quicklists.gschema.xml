@@ -1,7 +1,7 @@
 <schemalist>
   <schema id="org.gnome.shell.extensions.quicklists" path="/org/gnome/shell/extensions/quicklists/">
     <key name="icon" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Show icon in menu</summary>
       <description>Display icon if specified</description>
     </key>
@@ -34,6 +34,26 @@
       <default>false</default>
       <summary>Show quicklist in AppMenu</summary>
       <description>Display static actions list in AppMenu</description>
+    </key>
+    <key name="places-list" type="b">
+      <default>false</default>
+      <summary>Replace Nautilus quicklist with places list</summary>
+      <description>Generate user default/bookmark/mount places quicklist</description>
+    </key>
+    <key name="places-default" type="b">
+      <default>false</default>
+      <summary>Default places</summary>
+      <description>Default places in places list</description>
+    </key>
+    <key name="places-bookmarks" type="b">
+      <default>true</default>
+      <summary>Bookmarks</summary>
+      <description>Bookmarks in places list</description>
+    </key>
+    <key name="places-mounts" type="b">
+      <default>false</default>
+      <summary>Mounts</summary>
+      <description>Mounts in places list</description>
     </key>
   </schema>
 </schemalist>

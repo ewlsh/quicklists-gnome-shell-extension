@@ -144,7 +144,7 @@ function buildPrefsWidget() {
     grid.attach(appMenuCheck, 1,8,2,1);
     appMenuCheck.set_active(settings.get_boolean('in-appmenu'));
     appMenuCheck.connect('toggled', function(widget) {
-        settings.set_boolean('in-appmenu', widget.get_active());    
+        settings.set_boolean('in-appmenu', widget.get_active());
     });
     appMenuCheck.connect('enter-notify-event', function(widget, event) {
         infoLabel.set_label("<i><span color='red'>Require restart Shell</span></i>");
@@ -153,7 +153,48 @@ function buildPrefsWidget() {
         infoLabel.set_label("");
     });
 
-    grid.attach(new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, margin: 20 }), 0,9,4,1);
+    let placesListCheck = new Gtk.CheckButton({ label: "Replace Files quicklist", margin_top:10 });
+    grid.attach(placesListCheck, 1,9,2,1);
+    placesListCheck.set_active(settings.get_boolean('places-list'));
+    placesListCheck.connect('enter-notify-event', function(widget, event) {
+        infoLabel.set_label("<i>User default/bookmark/mount places</i>");
+    });
+    placesListCheck.connect('leave-notify-event', function(widget, event) {
+        infoLabel.set_label("");
+    });
+
+    let defaultPlacesCheck = new Gtk.CheckButton({ label: "Default places", margin_left: 40, margin_top: 5});
+    grid.attach(defaultPlacesCheck, 1,10,2,1);
+    defaultPlacesCheck.set_active(settings.get_boolean('places-default'));
+    defaultPlacesCheck.connect('toggled', function(widget) {
+        settings.set_boolean('places-default', widget.get_active());
+    });
+
+    let bookmarksCheck = new Gtk.CheckButton({ label: "Bookmarks", margin_left: 40});
+    grid.attach(bookmarksCheck, 1,11,2,1);
+    bookmarksCheck.set_active(settings.get_boolean('places-bookmarks'));
+    bookmarksCheck.connect('toggled', function(widget) {
+        settings.set_boolean('places-bookmarks', widget.get_active());
+    });
+
+    let mountsCheck = new Gtk.CheckButton({ label: "Mounts", margin_left: 40});
+    grid.attach(mountsCheck, 1,12,2,1);
+    mountsCheck.set_active(settings.get_boolean('places-mounts'));
+    mountsCheck.connect('toggled', function(widget) {
+        settings.set_boolean('places-mounts', widget.get_active());
+    });
+
+    placesListCheck.connect('toggled', function(widget) {
+        let active = widget.get_active();
+
+        defaultPlacesCheck.set_sensitive(active);
+        bookmarksCheck.set_sensitive(active);
+        mountsCheck.set_sensitive(active);
+
+        settings.set_boolean('places-list', active);
+    });
+
+    grid.attach(new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, margin: 20 }), 0,13,4,1);
 
     mainBox.add(grid);
 
@@ -165,10 +206,14 @@ function buildPrefsWidget() {
         freedesktopSpecCheck.set_active(true);
         ayatanaSpecCheck.set_active(true);
         selectionEnvironmentCheck.set_active(false);
-        iconCheck.set_active(true);
+        iconCheck.set_active(false);
         scale.set_value(16);
         iconTypeFullcolorRadio.set_active(true);
         appMenuCheck.set_active(false);
+        defaultPlacesCheck.set_active(false);
+        bookmarksCheck.set_active(true);
+        mountsCheck.set_active(false);
+        placesListCheck.set_active(false);
     });
 
     mainBox.add(hbox);

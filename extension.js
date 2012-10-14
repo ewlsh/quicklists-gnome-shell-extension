@@ -23,6 +23,71 @@ function setQuicklist(shellApp, popUpMenu) {
     if (!shellApp || !popUpMenu) return;
     if (shellApp.is_window_backed()) return
 
+    // replace nautilus quickilst by places list
+    if (settings.get_boolean('places-list')) {
+    if (shellApp.get_id() == 'nautilus.desktop' || shellApp.get_id() == 'nautilus-home.desktop') {
+
+        // use placesManager to generate user default/bookmark/mount places list
+        function _appendPlacesList(icon, iconSize, addDefaultPlaces, addBookmarks, addMounts) {
+
+            function _add_places_items(places, pos) {
+                let i = 0;
+                for (i; i<places.length; i++) {
+                    let item = new PopupMenu.PopupMenuItem(places[i].name);
+                    if (icon) {
+                        let icon = places[i].iconFactory(iconSize);
+                        item.addActor(icon, { align: St.Align.END });
+                    }
+                    item.place = places[i];
+                    popUpMenu.addMenuItem(item, pos + i);
+                    item.connect('activate', function(actor,event) {
+                        actor.place.launch();
+                    });
+                }
+                return i;
+            }
+
+            function _add_separator(pos) {
+                let item = new PopupMenu.PopupSeparatorMenuItem();
+                popUpMenu.addMenuItem(item, pos);
+            }
+
+            let n = 0;
+            if (addDefaultPlaces) {
+                let defaultPlaces = Main.placesManager.getDefaultPlaces();
+                n = _add_places_items(defaultPlaces, n);
+            }
+            if (addBookmarks) {
+                if (addDefaultPlaces && n>0) {
+                    _add_separator(n);
+                    n++;
+                }
+                let bookmarks = Main.placesManager.getBookmarks();
+                n = n + _add_places_items(bookmarks, n);
+            }
+            if (addMounts) {
+                if ( (addDefaultPlaces || addBookmarks) && n>0 ) {
+                    _add_separator(n);
+                    n++;
+                }
+                let mounts = Main.placesManager.getMounts();
+                n = n + _add_places_items(mounts, n);
+            }
+
+            if (n>0)
+                _add_separator(n);
+        }
+
+        _appendPlacesList(settings.get_boolean('icon'),
+            settings.get_int('icon-size'),
+            settings.get_boolean('places-default'),
+            settings.get_boolean('places-bookmarks'),
+            settings.get_boolean('places-mounts'));
+
+        return;
+    }
+    }
+
     let keyfile = null;
     let ayatana = false;
 
@@ -95,8 +160,9 @@ function setQuicklist(shellApp, popUpMenu) {
 
                 // is '/path/to/filename'?
                 if (GLib.path_is_absolute(iconName)) {
+                    let gicon = null;
                     try {
-                    let gicon = new Gio.Icon.new_for_string(iconName);
+                    gicon = new Gio.Icon.new_for_string(iconName);
                     } catch (e)  {
                     global.logError('' + e);
                     }
@@ -177,7 +243,7 @@ function setQuicklist(shellApp, popUpMenu) {
 
                 if (item) {
                     popUpMenu.addMenuItem(item, n);
-                    n = n + 1;
+                    n++;
                 }
             }
         }
