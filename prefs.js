@@ -1,226 +1,69 @@
-/**
-// Quicklists - prefs dialog
-// Copyright 2012  Damian Brun
-//
-// Licence: GPLv2+
-**/
-
-const Gtk = imports.gi.Gtk;
-const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
-
+const Gtk = imports.gi.Gtk;
+const Gdk = imports.gi.Gdk;
 const Lang = imports.lang;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const Convenience = Me.imports.convenience;
 
-function init() {}
+//const Gettext = imports.gettext.domain('dynamic-panel-transparency');
+//const _ = Gettext.gettext;
 
-function buildPrefsWidget() {
-    let settings = Convenience.getSettings();
+/* Settings Keys */
+const SETTINGS_APP_MENUS = 'in-appmenu';
+const SETTINGS_SHOW_ICONS = 'show-icons';
 
-    let mainBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, margin: 20 });
-
-    let grid = new Gtk.Grid({ row_spacing: 1, column_spacing: 15  });
-
-    let infoLabel = new Gtk.Label ({ use_markup: true , margin:10});
-
-    let specLabel = new Gtk.Label({ label: "<b>Specification:</b>" , use_markup: true, xalign: 0 , margin_right: 20});
-    grid.attach(specLabel, 0,0,1,1);
-
-    let freedesktopSpecCheck = new Gtk.CheckButton({ label: "FreeDesktop"});
-    grid.attach(freedesktopSpecCheck, 1,0,2,1);
-    freedesktopSpecCheck.set_active(settings.get_boolean('freedesktop-spec'));
-    freedesktopSpecCheck.connect('toggled', function(widget) {
-        settings.set_boolean('freedesktop-spec', widget.get_active());
-    });
-    freedesktopSpecCheck.connect('enter-notify-event', function(widget, event) {
-        infoLabel.set_label("<i>Desktop Actions</i>");
-    });
-    freedesktopSpecCheck.connect('leave-notify-event', function(widget, event) {
-        infoLabel.set_label("");
-    });
-
-    let ayatanaSpecCheck = new Gtk.CheckButton({ label: "Ayatana Project" });
-    grid.attach(ayatanaSpecCheck, 1,1,2,1);
-    ayatanaSpecCheck.set_active(settings.get_boolean('ayatana-spec'));
-    ayatanaSpecCheck.connect('toggled', function(widget) {
-        settings.set_boolean('ayatana-spec', widget.get_active());
-    });
-    ayatanaSpecCheck.connect('enter-notify-event', function(widget, event) {
-        infoLabel.set_label("<i>Old-style Unity Shortcut Groups</i>");
-    });
-    ayatanaSpecCheck.connect('leave-notify-event', function(widget, event) {
-        infoLabel.set_label("");
-    });
-
-    freedesktopSpecCheck.connect('toggled', function(widget) {
-        if (!widget.get_active() && !ayatanaSpecCheck.get_active()) {
-            ayatanaSpecCheck.set_active(true);
-        }
-    });
-    ayatanaSpecCheck.connect('toggled', function(widget) {
-        if (!widget.get_active() && !freedesktopSpecCheck.get_active()) {
-            freedesktopSpecCheck.set_active(true);
-        }
-    });
-
-    let selectionEnvironmentCheck = new Gtk.CheckButton({ label: "Environments selection", margin_top: 15});
-    grid.attach(selectionEnvironmentCheck, 1,2,2,1);
-    selectionEnvironmentCheck.set_active(settings.get_boolean('showin-rules'));
-    selectionEnvironmentCheck.connect('toggled', function(widget) {
-        settings.set_boolean('showin-rules', widget.get_active());
-    });
-    selectionEnvironmentCheck.connect('enter-notify-event', function(widget, event) {
-        infoLabel.set_label("<i>Show up only in target environments</i>");
-    });
-    selectionEnvironmentCheck.connect('leave-notify-event', function(widget, event) {
-        infoLabel.set_label("");
-    });
-
-    grid.attach(new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, margin: 20 }), 0,3,1,1);
-
-    let iconLabel = new Gtk.Label({ label: "<b>Icons:</b>" , use_markup: true, xalign: 0 });
-    grid.attach(iconLabel, 0,4,1,1);
-
-    let iconCheck = new Gtk.CheckButton({ label: "Show in menu item" });
-    grid.attach(iconCheck, 1,4,2,1);
-    iconCheck.set_active(!settings.get_boolean('icon'));
-    iconCheck.connect('enter-notify-event', function(widget, event) {
-        infoLabel.set_label("<i>Display icon specified in desktop entry file</i>");
-    });
-    iconCheck.connect('leave-notify-event', function(widget, event) {
-        infoLabel.set_label("");
-    });
-
-    let iconSizeLabel = new Gtk.Label({ label: "Size:", xalign: 0 , margin_top: 5, margin_bottom: 5});
-    let adjustment = new Gtk.Adjustment({ lower: 16, upper: 32, step_increment: 1 });
-    let scale = new Gtk.HScale({ digits:0, adjustment: adjustment, value_pos: Gtk.PositionType.RIGHT });
-    scale.set_value(settings.get_int('icon-size'));
-    scale.connect('value-changed', function(widget) {
-        settings.set_int('icon-size', widget.get_value());
-    });
-
-    grid.attach(iconSizeLabel, 1,5,1,1);
-    grid.attach(scale, 2,5, 2,1)
-
-    let iconTypeLabel = new Gtk.Label({ label: "Type:", xalign: 0 });
-    let iconTypeFullcolorRadio = new Gtk.RadioButton({ label: "Fullcolor" });
-    let iconTypeSymbolicRadio = new Gtk.RadioButton({label: "Symbolic"});
-    grid.attach(iconTypeLabel, 1,6,1,1);
-    grid.attach(iconTypeFullcolorRadio, 2,6, 1,1)
-    grid.attach(iconTypeSymbolicRadio, 3,6, 1,1)
-    iconTypeSymbolicRadio.set_active(settings.get_boolean('icon-symbolic'));
-    iconTypeSymbolicRadio.connect('toggled', function(widget) {
-        settings.set_boolean('icon-symbolic', widget.get_active());
-    });
-    iconTypeSymbolicRadio.connect('enter-notify-event', function(widget, event) {
-        infoLabel.set_label("<i>Work only with themed icon</i>");
-    });
-    iconTypeSymbolicRadio.connect('leave-notify-event', function(widget, event) {
-        infoLabel.set_label("");
-    });
-
-    iconCheck.connect('toggled', function(widget) {
-        let active = widget.get_active();
-
-        iconSizeLabel.set_sensitive(active);
-        scale.set_sensitive(active);
-        iconTypeLabel.set_sensitive(active);
-        iconTypeFullcolorRadio.set_sensitive(active);
-        iconTypeSymbolicRadio.set_sensitive(active);
-
-        settings.set_boolean('icon', active);
-    });
-
-    iconCheck.set_active(settings.get_boolean('icon'));
-
-    grid.attach(new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, margin: 20 }), 0,7,4,1);
-
-    let integrationLabel = new Gtk.Label({ label: "<b>Integration:</b>" , use_markup: true, xalign: 0 });
-    grid.attach(integrationLabel, 0,8,1,1);
-
-    let appMenuCheck = new Gtk.CheckButton({ label: "Show quicklist in AppMenu" });
-    grid.attach(appMenuCheck, 1,8,2,1);
-    appMenuCheck.set_active(settings.get_boolean('in-appmenu'));
-    appMenuCheck.connect('toggled', function(widget) {
-        settings.set_boolean('in-appmenu', widget.get_active());
-    });
-    appMenuCheck.connect('enter-notify-event', function(widget, event) {
-        infoLabel.set_label("<i><span color='red'>Require restart Shell</span></i>");
-    });
-    appMenuCheck.connect('leave-notify-event', function(widget, event) {
-        infoLabel.set_label("");
-    });
-
-    let placesListCheck = new Gtk.CheckButton({ label: "Replace Files quicklist", margin_top:10 });
-    grid.attach(placesListCheck, 1,9,2,1);
-    placesListCheck.set_active(settings.get_boolean('places-list'));
-    placesListCheck.connect('enter-notify-event', function(widget, event) {
-        infoLabel.set_label("<i>User default/bookmark/mount places</i>");
-    });
-    placesListCheck.connect('leave-notify-event', function(widget, event) {
-        infoLabel.set_label("");
-    });
-
-    let defaultPlacesCheck = new Gtk.CheckButton({ label: "Default places", margin_left: 40, margin_top: 5});
-    grid.attach(defaultPlacesCheck, 1,10,2,1);
-    defaultPlacesCheck.set_active(settings.get_boolean('places-default'));
-    defaultPlacesCheck.connect('toggled', function(widget) {
-        settings.set_boolean('places-default', widget.get_active());
-    });
-
-    let bookmarksCheck = new Gtk.CheckButton({ label: "Bookmarks", margin_left: 40});
-    grid.attach(bookmarksCheck, 1,11,2,1);
-    bookmarksCheck.set_active(settings.get_boolean('places-bookmarks'));
-    bookmarksCheck.connect('toggled', function(widget) {
-        settings.set_boolean('places-bookmarks', widget.get_active());
-    });
-
-    let mountsCheck = new Gtk.CheckButton({ label: "Mounts", margin_left: 40});
-    grid.attach(mountsCheck, 1,12,2,1);
-    mountsCheck.set_active(settings.get_boolean('places-mounts'));
-    mountsCheck.connect('toggled', function(widget) {
-        settings.set_boolean('places-mounts', widget.get_active());
-    });
-
-    placesListCheck.connect('toggled', function(widget) {
-        let active = widget.get_active();
-
-        defaultPlacesCheck.set_sensitive(active);
-        bookmarksCheck.set_sensitive(active);
-        mountsCheck.set_sensitive(active);
-
-        settings.set_boolean('places-list', active);
-    });
-
-    grid.attach(new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, margin: 20 }), 0,13,4,1);
-
-    mainBox.add(grid);
-
-    let hbox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL });
-
-    let defaultButton = new Gtk.Button({ label: "Default"});
-    hbox.pack_end(defaultButton, false, false, 5);
-    defaultButton.connect('clicked', function(widget) {
-        freedesktopSpecCheck.set_active(true);
-        ayatanaSpecCheck.set_active(true);
-        selectionEnvironmentCheck.set_active(false);
-        iconCheck.set_active(false);
-        scale.set_value(16);
-        iconTypeFullcolorRadio.set_active(true);
-        appMenuCheck.set_active(false);
-        defaultPlacesCheck.set_active(false);
-        bookmarksCheck.set_active(true);
-        mountsCheck.set_active(false);
-        placesListCheck.set_active(false);
-    });
-
-    mainBox.add(hbox);
-    mainBox.add(infoLabel);
-
-    mainBox.show_all();
-
-    return mainBox;
+function init() {
+    //Convenience.initTranslations();
 }
 
+function buildPrefsWidget() {
+    let widget = new SettingsUI();
+    widget.show_all();
+
+    return widget;
+}
+
+/* UI Setup */
+const SettingsUI = new Lang.Class({
+    Name: 'QuickListsReborn.Prefs.SettingsUI',
+    GTypeName: 'SettingsUI',
+    Extends: Gtk.Grid,
+
+    _init: function(params) {
+
+        this.parent(params);
+
+        this.margin = 24;
+
+        this.row_spacing = 6;
+
+        this.orientation = Gtk.Orientation.VERTICAL;
+
+        this.settings = Convenience.getSettings();
+
+        /* control corners */
+        let check = new Gtk.CheckButton({
+            label: "Show Icons",
+            tooltip_text: "Show icons in menus.",
+            margin_top: 6
+        });
+        check.set_active(this.settings.get_boolean(SETTINGS_SHOW_ICONS));
+        check.connect('toggled', Lang.bind(this, function(value) {
+            this.settings.set_boolean(SETTINGS_SHOW_ICONS, value.get_active());
+        }));
+        this.add(check);
+
+        /* force animation */
+        check = new Gtk.CheckButton({
+            label: "Show in App Menus",
+            tooltip_text:  "Shows quicklists in app menus.",
+            margin_top: 6
+        });
+        check.set_active(this.settings.get_boolean(SETTINGS_APP_MENUS));
+        check.connect('toggled', Lang.bind(this, function(value) {
+            this.settings.set_boolean(SETTINGS_APP_MENUS, value.get_active());
+        }));
+        this.add(check);
+    },
+});

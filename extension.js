@@ -7,6 +7,7 @@
 
 const AppDisplay = imports.ui.appDisplay;
 const PopupMenu = imports.ui.popupMenu;
+const RemoteMenu = imports.ui.remoteMenu;
 const Main = imports.ui.main;
 const Panel = imports.ui.panel;
 const Lang = imports.lang;
@@ -16,198 +17,233 @@ const Gio = imports.gi.Gio;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const Convenience = Me.imports.convenience;
+const DesktopFile = Me.imports.desktopfile;
 
-let settings = null;
+const SETTINGS_APP_MENUS = 'in-appmenu';
+const SETTINGS_SHOW_ICONS = 'show-icons';
 
-function get_key_file(shellApp) {
-    let keyfile = null;
-    let app = shellApp.get_app_info();
+const ORIGINAL_AppMenuButton_maybeSetMenu = Panel.AppMenuButton.prototype._maybeSetMenu;
+const ORIGINAL_AppIconMenu_redisplay = AppDisplay.AppIconMenu.prototype._redisplay;
 
-    let desktopFile = app.get_filename();
-
-    if (!GLib.file_test(desktopFile, GLib.FileTest.EXISTS))
-        return null;
-
-    keyfile = new GLib.KeyFile();
-
-    keyfile.load_from_file(desktopFile, GLib.KeyFileFlags.NONE);
-
-
-    return keyfile;
-}
-
-function get_item_from_action(keyfile, action) {
-    let group = action + ' Shortcut Group';
-
-    let item = null;
-
-    let name = null;
-    let exec = null;
-
-    // search 'Name' key localized value
-    let lang = GLib.get_language_names();
-    for (let i = 0; i < lang.length; i++) {
-        try {
-            name = keyfile.get_locale_string(group, 'Name', lang[i]);
-        } catch (e) {}
-        if (name != null) break;
-    }
-    if (name == null) {
-        try {
-            name = keyfile.get_string(group, 'Name');
-        } catch (e) {}
-    }
-
-    try {
-        exec = keyfile.get_string(group, 'Exec');
-    } catch (e) {}
-
-    // (image) menu item
-
-
-    // if action entries are correct build menu item
-    if ((name != null) && (exec != null)) {
-        let iconName = null;
-        if (settings.get_boolean('icon')) {
-            try {
-                iconName = keyfile.get_string(group, 'Icon');
-            } catch (e) {}
-        }
-        if (iconName !== null) {
-            item = new PopupMenu.PopupImageMenuItem(name, iconName);
-        } else {
-            item = new PopupMenu.PopupMenuItem(name);
-
-        }
-        item.connect('activate', function() {
-            // maybe not so good, but in most cases works...
-            try {
-                GLib.spawn_command_line_async(exec.split('%')[0]);
-            } catch (e) {
-                global.logError('' + e);
-            }
-        });
-    }
-
-    return item;
-}
-
-
-
-
-
-
-function get_actions(keyfile) {
-    let actions = [];
-
-    try {
-        actions = keyfile.get_string_list('Desktop Entry', 'X-Ayatana-Desktop-Shortcuts');
-    } catch (e) {}
-
-    return actions;
-}
-
-
-let origAppIconMenu_redisplay = null;
-let origAppIconMenu_removeAll = null;
-let origAppMenuButton_maybeSetMenu = null;
-let appMenuQuicklistEnabled = false;
+let settings_manager = null;
 
 function init() {
-    settings = null;
+    this.settings = null;
 }
+
+
 
 function enable() {
     settings = Convenience.getSettings();
-    origAppIconMenu_redisplay = AppDisplay.AppIconMenu.prototype._redisplay;
-
-
-
-    AppDisplay.AppIconMenu.prototype._redisplay = function() {
-        let window_backed = this._source.app.is_window_backed();
-        let original = null;
-        let keyfile = null;
-        if (window_backed || (keyfile = get_key_file(this._source.app)) === null) {
-            origAppIconMenu_redisplay.call(this);
-            return;
-        }
-        let ayatana_actions = get_actions(keyfile);
-        let remove_new_window = ayatana_actions.some(function(element) {
-            if ('newwindow' === element.replace('-', '').replace(' ', '').toLowerCase()) {
-                return true;
-            }
-            return false;
-        });
-
-        if (remove_new_window) {
-            original = this._source.app.__proto__.can_open_new_window;
-            this._source.app.__proto__.can_open_new_window = function() {
-                return false;
-            }
-        }
-
-        // call original
-        origAppIconMenu_redisplay.call(this);
-
-        if (remove_new_window) {
-            this._source.app.__proto__.can_open_new_window = original;
-            original = null;
-        }
-
-        let windows_ = this._source.app.get_windows().filter(function(w) {
-            return !w.skip_taskbar;
-        });
-        let activeWorkspace_ = global.screen.get_active_workspace();
-        let separatorShown_ = windows_.length > 0 && windows_[0].get_workspace() != activeWorkspace_;
-        let index = 0;
-        for (let i = 0; i < windows_.length; i++) {
-            let window = windows_[i];
-            if (!separatorShown_ && window.get_workspace() != activeWorkspace_) {
-                index++;
-                separatorShown_ = true;
-            }
-            index++;
-        }
-        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), index++);
-        for (let i = 0; i < ayatana_actions.length; i++) {
-            let action = ayatana_actions[i];
-
-            let item = get_item_from_action(keyfile, action);
-            this.addMenuItem(item, index++);
-        }
-    };
+    bind_settings();
+    AppDisplay.AppIconMenu.prototype._redisplay = qlrAppIconMenu_redisplay;
+    if (this.settings_manager.show_in_appmenus) {
+        Panel.AppMenuButton.prototype._maybeSetMenu = qlrAppMenuButton_maybeSetMenu;
+        Main.panel._maybeSetMenu();
+    }
 }
 
 function disable() {
-    AppDisplay.AppIconMenu.prototype._redisplay = origAppIconMenu_redisplay;
+    AppDisplay.AppIconMenu.prototype._redisplay = ORIGINAL_AppIconMenu_redisplay;
+    if (this.settings_manager.show_in_appmenus) {
+        Panel.AppMenuButton.prototype._maybeSetMenu = ORIGINAL_AppMenuButton_maybeSetMenu;
+        Main.panel._maybeSetMenu();
+    }
+}
+
+function qlrAppIconMenu_redisplay() {
+    let window_backed = this._source.app.is_window_backed();
+    let original = null;
+    let keyfile = null;
+    if (window_backed || (keyfile = DesktopFile.get_key_file(this._source.app)) === null) {
+        ORIGINAL_AppIconMenu_redisplay.call(this);
+        return;
+    }
+    let ayatana_actions = DesktopFile.get_actions(keyfile);
+    let freedesktop_actions = DesktopFile.get_actions(keyfile, false);
+    // don't let gnome shell add 'new window' if there is already a good common for it
+    let remove_new_window = ayatana_actions.some(function(element) {
+        let name = DesktopFile.get_name_for_action(keyfile, element, false);
+        if (name.replace('-', '').replace(' ', '').toLowerCase().indexOf("new") != -1) {
+            return true;
+        }
+        return false;
+    }) || freedesktop_actions.some(function(element) {
+        let name = DesktopFile.get_name_for_action(keyfile, element, false, false);
+        if (name.replace('-', '').replace(' ', '').toLowerCase().indexOf("new") != -1) {
+            return true;
+        }
+        return false;
+    });;
+
+
+
+    if (remove_new_window) {
+        original = this._source.app.__proto__.can_open_new_window;
+        this._source.app.__proto__.can_open_new_window = function() {
+            return false;
+        }
+    }
+
+    // call original
+    ORIGINAL_AppIconMenu_redisplay.call(this);
+
+    if (remove_new_window) {
+        this._source.app.__proto__.can_open_new_window = original;
+        original = null;
+    }
+
+    let windows_ = this._source.app.get_windows().filter(function(w) {
+        return !w.skip_taskbar;
+    });
+    let activeWorkspace_ = global.screen.get_active_workspace();
+    let separatorShown_ = windows_.length > 0 && windows_[0].get_workspace() != activeWorkspace_;
+    let index = 0;
+    for (let i = 0; i < windows_.length; i++) {
+        let window = windows_[i];
+        if (!separatorShown_ && window.get_workspace() != activeWorkspace_) {
+            index++;
+            separatorShown_ = true;
+        }
+        index++;
+    }
+    this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), index++);
+    for (let i = 0; i < ayatana_actions.length; i++) {
+        let action = ayatana_actions[i];
+
+        let item = DesktopFile.get_item_from_action(keyfile, action, null, settings_manager.show_icons);
+        this.addMenuItem(item, index++);
+    }
 }
 
 
-/*function _enableQuicklistInAppMenu() {
-    origAppMenuButton_maybeSetMenu = Panel.AppMenuButton.prototype._maybeSetMenu;
-    Panel.AppMenuButton.prototype._maybeSetMenu = function() {
-        // destroy active menu - always create new
-        this.setMenu(null);
+function qlrAppMenuButton_maybeSetMenu() {
 
-        origAppMenuButton_maybeSetMenu.call(this);
+    // destroy active menu - always create new
+    this.setMenu(null);
+    ORIGINAL_AppMenuButton_maybeSetMenu.call(this);
 
-        if (this.menu && !(this.menu instanceof PopupMenu.RemoteMenu))
-            setQuicklist(this._targetApp, this.menu);
-    };
+    if (this.menu !== null && this._targetApp !== null) {
 
-    // force re-create AppMenu for probable active window
-    Main.panel._appMenu.setMenu(null);
-    if (Main.panel._appMenu._targetApp != null)
-        Main.panel._appMenu._maybeSetMenu();
 
-    appMenuQuicklistEnabled = true;
+        let items = this.menu._getMenuItems();
+
+
+        let index = 0; //
+        if (this.menu instanceof RemoteMenu.RemoteMenu) {
+            if (items.length == 0)
+                index = 0;
+            else
+                index = items.length;
+        } else {
+            for (; index < items.length; ++index) {
+
+                if (items[index] instanceof PopupMenu.PopupSeparatorMenuItem) {
+
+                    index--;
+                    break;
+                }
+            }
+            if (index == items.length) {
+                index = 0;
+            }
+        }
+
+        let window_backed = this._targetApp.is_window_backed();
+        let original = null;
+        let keyfile = null;
+        if (window_backed || (keyfile = get_key_file(this._targetApp)) === null) {
+            return;
+        }
+        let ayatana_actions = DesktopFile.get_actions(keyfile).reverse();
+        let freedesktop_actions = DesktopFile.get_actions(keyfile, false).reverse();
+
+
+        for (let i = 0; i < freedesktop_actions.length; i++) {
+            let action = freedesktop_actions[i];
+
+            let item = DesktopFile.get_item_from_action(keyfile, action, this._targetApp, settings_manager.show_icons,false);
+
+
+            this.menu.addMenuItem(item, index);
+
+        }
+
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), index);
+        for (let i = 0; i < ayatana_actions.length; i++) {
+            let action = ayatana_actions[i];
+
+            let item = DesktopFile.get_item_from_action(keyfile, action,settings_manager.show_icons, null);
+
+
+            this.menu.addMenuItem(item, index);
+
+        }
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(), index);
+    }
+    /* Main.panel._menuManager.activeMenu().setMenu(null);
+        if (Main.panel._appMenu._targetApp != null)
+            Main.panel._appMenu._maybeSetMenu();
+
+        // force re-create AppMenu for probable active window
+
+        // if (Main.panel._appMenu._targetApp != null)
+        //   Main.panel._appMenu._maybeSetMenu();
+*/
+
+
 }
 
-function _disbaleQuicklistInAppMenu() {
-    Panel.AppMenuButton.prototype._maybeSetMenu = origAppMenuButton_maybeSetMenu;
+function bind_settings() {
+    let use_icons = this.settings.get_boolean(SETTINGS_SHOW_ICONS);
+    let show_in_appmenus = this.settings.get_boolean(SETTINGS_APP_MENUS);
 
-    // force re-create AppMenu for probable active window
-    Main.panel._appMenu.setMenu(null);
-    if (Main.panel._appMenu._targetApp != null)
-        Main.panel._appMenu._maybeSetMenu();
-}*/
+
+    settings_manager = new SettingsManager(this.settings, use_icons, show_in_appmenus);
+
+    this.settingsBoundIds = [];
+
+    this.settingsBoundIds.push(this.settings.connect('changed::' + SETTINGS_SHOW_ICONS, Lang.bind(this, function() {
+        this.settings.connect('changed::' + SETTINGS_SHOW_ICONS, Lang.bind(this, function() {
+                settings_manager.update({
+                    use_icons: this.settings.get_boolean(SETTINGS_SHOW_ICONS)
+                });
+            })),
+            this.settings.connect('changed::' + SETTINGS_APP_MENUS, Lang.bind(this, function() {
+                settings_manager.update({
+                    show_in_appmenus: this.settings.get_boolean(SETTINGS_APP_MENUS)
+                });
+            }));
+
+    })));
+
+}
+
+function unbind_settings() {
+    for (let i = 0; i < this.settingsBoundIds.length; ++i) {
+        this.settings.disconnect(this.settingsBoundIds[i]);
+    }
+}
+
+
+const SettingsManager = new Lang.Class({
+    Name: 'SettingsManager',
+    _init: function(settings, show_icons, show_in_appmenus) {
+        this.settings = settings;
+        this.show_icons = show_icons;
+        this.show_in_appmenus = show_in_appmenus;
+    },
+    update: function(params = null) {
+        if (params === null)
+            params = {
+                show_icons: show_iconthis.settings.get_boolean(SETTINGS_SHOW_ICONS),
+                show_in_appmenus: this.settings.get_boolean(SETTINGS_SHOW_ICONS)
+            };
+
+        this.show_icons = is_undef(params.show_icons) ? this.settings.get_boolean(SETTINGS_SHOW_ICONS) : params.show_icons;
+        this.show_in_appmenus = is_undef(params.show_in_appmenus) ? this.settings.get_boolean(SETTINGS_APP_MENUS) : params.use_in_appmenus;
+
+    }
+});

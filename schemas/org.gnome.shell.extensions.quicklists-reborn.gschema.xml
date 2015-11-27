@@ -1,0 +1,14 @@
+<schemalist>
+  <schema id="org.gnome.shell.extensions.quicklists-reborn" path="/org/gnome/shell/extensions/quicklists-reborn/">
+    <key name="show-icons" type="b">
+      <default>false</default>
+      <summary>Show icon in menu</summary>
+      <description>Display icon if specified</description>
+    </key>
+    <key name="in-appmenu" type="b">
+      <default>false</default>
+      <summary>Show quicklist in AppMenu</summary>
+      <description>Display static actions list in AppMenu</description>
+    </key>
+  </schema>
+</schemalist>
