@@ -10,8 +10,9 @@ const Convenience = Me.imports.convenience;
 //const _ = Gettext.gettext;
 
 /* Settings Keys */
-const SETTINGS_APP_MENUS = 'in-appmenu';
+const SETTINGS_APP_MENUS = 'show-in-app-menu';
 const SETTINGS_SHOW_ICONS = 'show-icons';
+const SETTINGS_IGNORE_REMOTE_MENU = 'ignore-remote-menu';
 
 function init() {
     //Convenience.initTranslations();
@@ -42,10 +43,10 @@ const SettingsUI = new Lang.Class({
 
         this.settings = Convenience.getSettings();
 
-        /* control corners */
+
         let check = new Gtk.CheckButton({
             label: "Show Icons",
-            tooltip_text: "Show icons in menus.",
+            tooltip_text: "Shows icons in menus if available.",
             margin_top: 6
         });
         check.set_active(this.settings.get_boolean(SETTINGS_SHOW_ICONS));
@@ -54,16 +55,32 @@ const SettingsUI = new Lang.Class({
         }));
         this.add(check);
 
-        /* force animation */
+
+        let subcheck = new Gtk.CheckButton({
+            label: "Add to apps that already have their own custom menu.",
+            tooltip_text: "Ignores RemoteMenu.",
+            margin_top: 2,
+            margin_left: 12
+        });
+        subcheck.set_active(this.settings.get_boolean(SETTINGS_IGNORE_REMOTE_MENU));
+        subcheck.connect('toggled', Lang.bind(this, function(value) {
+            this.settings.set_boolean(SETTINGS_IGNORE_REMOTE_MENU, value.get_active());
+        }));
+
+
         check = new Gtk.CheckButton({
             label: "Show in App Menus",
-            tooltip_text:  "Shows quicklists in app menus.",
+            tooltip_text: "Shows quicklists in app menus.",
             margin_top: 6
         });
         check.set_active(this.settings.get_boolean(SETTINGS_APP_MENUS));
         check.connect('toggled', Lang.bind(this, function(value) {
+            subcheck.set_sensitive(value.get_active());
             this.settings.set_boolean(SETTINGS_APP_MENUS, value.get_active());
         }));
         this.add(check);
+        this.add(subcheck);
+
+
     },
 });

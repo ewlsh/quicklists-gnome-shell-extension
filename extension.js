@@ -19,8 +19,9 @@ const Me = imports.misc.extensionUtils.getCurrentExtension();
 const Convenience = Me.imports.convenience;
 const DesktopFile = Me.imports.desktopfile;
 
-const SETTINGS_APP_MENUS = 'in-appmenu';
+const SETTINGS_APP_MENUS = 'show-in-app-menu';
 const SETTINGS_SHOW_ICONS = 'show-icons';
+const SETTINGS_IGNORE_REMOTE_MENU = 'ignore-remote-menu';
 
 const ORIGINAL_AppMenuButton_maybeSetMenu = Panel.AppMenuButton.prototype._maybeSetMenu;
 const ORIGINAL_AppIconMenu_redisplay = AppDisplay.AppIconMenu.prototype._redisplay;
@@ -37,18 +38,34 @@ function enable() {
     settings = Convenience.getSettings();
     bind_settings();
     AppDisplay.AppIconMenu.prototype._redisplay = qlrAppIconMenu_redisplay;
-    if (this.settings_manager.show_in_appmenus) {
-        Panel.AppMenuButton.prototype._maybeSetMenu = qlrAppMenuButton_maybeSetMenu;
-        Main.panel._maybeSetMenu();
+    if (settings_manager.show_in_appmenus) {
+        enable_appmenus();
     }
 }
 
 function disable() {
+    settings = null;
+    unbind_settings();
     AppDisplay.AppIconMenu.prototype._redisplay = ORIGINAL_AppIconMenu_redisplay;
-    if (this.settings_manager.show_in_appmenus) {
-        Panel.AppMenuButton.prototype._maybeSetMenu = ORIGINAL_AppMenuButton_maybeSetMenu;
-        Main.panel._maybeSetMenu();
+    if (settings_manager.show_in_appmenus) {
+        disable_appmenus();
     }
+}
+
+function enable_appmenus() {
+    Panel.AppMenuButton.prototype._maybeSetMenu = qlrAppMenuButton_maybeSetMenu;
+    Main.panel.statusArea.appMenu.setMenu(null);
+
+    Main.panel.statusArea.appMenu._maybeSetMenu();
+
+}
+
+function disable_appmenus() {
+    Panel.AppMenuButton.prototype._maybeSetMenu = ORIGINAL_AppMenuButton_maybeSetMenu;
+    Main.panel.statusArea.appMenu.setMenu(null);
+
+    Main.panel.statusArea.appMenu._maybeSetMenu();
+
 }
 
 function qlrAppIconMenu_redisplay() {
@@ -131,10 +148,14 @@ function qlrAppMenuButton_maybeSetMenu() {
 
         let index = 0; //
         if (this.menu instanceof RemoteMenu.RemoteMenu) {
-            if (items.length == 0)
-                index = 0;
-            else
-                index = items.length;
+            if (settings_manager.ignore_remotemenus) {
+                if (items.length == 0)
+                    index = 0;
+                else
+                    index = items.length;
+            } else {
+                return;
+            }
         } else {
             for (; index < items.length; ++index) {
 
@@ -152,7 +173,7 @@ function qlrAppMenuButton_maybeSetMenu() {
         let window_backed = this._targetApp.is_window_backed();
         let original = null;
         let keyfile = null;
-        if (window_backed || (keyfile = get_key_file(this._targetApp)) === null) {
+        if (window_backed || (keyfile = DesktopFile.get_key_file(this._targetApp)) === null) {
             return;
         }
         let ayatana_actions = DesktopFile.get_actions(keyfile).reverse();
@@ -162,7 +183,7 @@ function qlrAppMenuButton_maybeSetMenu() {
         for (let i = 0; i < freedesktop_actions.length; i++) {
             let action = freedesktop_actions[i];
 
-            let item = DesktopFile.get_item_from_action(keyfile, action, this._targetApp, settings_manager.show_icons,false);
+            let item = DesktopFile.get_item_from_action(keyfile, action, this._targetApp, settings_manager.show_icons, false);
 
 
             this.menu.addMenuItem(item, index);
@@ -174,7 +195,7 @@ function qlrAppMenuButton_maybeSetMenu() {
         for (let i = 0; i < ayatana_actions.length; i++) {
             let action = ayatana_actions[i];
 
-            let item = DesktopFile.get_item_from_action(keyfile, action,settings_manager.show_icons, null);
+            let item = DesktopFile.get_item_from_action(keyfile, action, settings_manager.show_icons, null);
 
 
             this.menu.addMenuItem(item, index);
@@ -199,26 +220,36 @@ function qlrAppMenuButton_maybeSetMenu() {
 function bind_settings() {
     let use_icons = this.settings.get_boolean(SETTINGS_SHOW_ICONS);
     let show_in_appmenus = this.settings.get_boolean(SETTINGS_APP_MENUS);
+    let ignore_remotemenus = this.settings.get_boolean(SETTINGS_IGNORE_REMOTE_MENU);
 
-
-    settings_manager = new SettingsManager(this.settings, use_icons, show_in_appmenus);
+    settings_manager = new SettingsManager(this.settings, use_icons, show_in_appmenus, ignore_remotemenus);
 
     this.settingsBoundIds = [];
 
-    this.settingsBoundIds.push(this.settings.connect('changed::' + SETTINGS_SHOW_ICONS, Lang.bind(this, function() {
+    this.settingsBoundIds.push(
         this.settings.connect('changed::' + SETTINGS_SHOW_ICONS, Lang.bind(this, function() {
-                settings_manager.update({
-                    use_icons: this.settings.get_boolean(SETTINGS_SHOW_ICONS)
-                });
-            })),
-            this.settings.connect('changed::' + SETTINGS_APP_MENUS, Lang.bind(this, function() {
-                settings_manager.update({
-                    show_in_appmenus: this.settings.get_boolean(SETTINGS_APP_MENUS)
-                });
-            }));
+            settings_manager.update({
+                use_icons: this.settings.get_boolean(SETTINGS_SHOW_ICONS)
+            });
+        })),
+        this.settings.connect('changed::' + SETTINGS_IGNORE_REMOTE_MENU, Lang.bind(this, function() {
+            settings_manager.update({
+                ignore_remotemenus: this.settings.get_boolean(SETTINGS_IGNORE_REMOTE_MENU)
+            });
+            disable_appmenus();
+            enable_appmenus();
 
-    })));
-
+        })),
+        this.settings.connect('changed::' + SETTINGS_APP_MENUS, Lang.bind(this, function() {
+            settings_manager.update({
+                show_in_appmenus: this.settings.get_boolean(SETTINGS_APP_MENUS)
+            });
+            if (settings_manager.show_in_appmenus) {
+                enable_appmenus();
+            } else {
+                disable_appmenus();
+            }
+        })));
 }
 
 function unbind_settings() {
@@ -230,20 +261,27 @@ function unbind_settings() {
 
 const SettingsManager = new Lang.Class({
     Name: 'SettingsManager',
-    _init: function(settings, show_icons, show_in_appmenus) {
+    _init: function(settings, show_icons, show_in_appmenus, ignore_remotemenus) {
         this.settings = settings;
         this.show_icons = show_icons;
         this.show_in_appmenus = show_in_appmenus;
+        this.ignore_remotemenus = ignore_remotemenus;
     },
     update: function(params = null) {
         if (params === null)
             params = {
-                show_icons: show_iconthis.settings.get_boolean(SETTINGS_SHOW_ICONS),
-                show_in_appmenus: this.settings.get_boolean(SETTINGS_SHOW_ICONS)
+                show_icons: this.settings.get_boolean(SETTINGS_SHOW_ICONS),
+                show_in_appmenus: this.settings.get_boolean(SETTINGS_APP_MENUS),
+                ignore_remotemenus: this.settings.get_boolean(SETTINGS_IGNORE_REMOTE_MENU)
             };
 
         this.show_icons = is_undef(params.show_icons) ? this.settings.get_boolean(SETTINGS_SHOW_ICONS) : params.show_icons;
-        this.show_in_appmenus = is_undef(params.show_in_appmenus) ? this.settings.get_boolean(SETTINGS_APP_MENUS) : params.use_in_appmenus;
+        this.show_in_appmenus = is_undef(params.show_in_appmenus) ? this.settings.get_boolean(SETTINGS_APP_MENUS) : params.show_in_appmenus;
+        this.ignore_remotemenus = is_undef(params.ignore_remotemenus) ? this.settings.get_boolean(SETTINGS_IGNORE_REMOTE_MENU) : params.ignore_remotemenus;
 
     }
 });
+
+function is_undef(a) {
+    return (typeof(a) === 'undefined' || a === null);
+}

@@ -5,10 +5,15 @@
       <summary>Show icon in menu</summary>
       <description>Display icon if specified</description>
     </key>
-    <key name="in-appmenu" type="b">
+    <key name="show-in-app-menu" type="b">
       <default>false</default>
-      <summary>Show quicklist in AppMenu</summary>
+      <summary>Show quicklists in AppMenus</summary>
       <description>Display static actions list in AppMenu</description>
+    </key>
+    <key name="ignore-remote-menu" type="b">
+      <default>false</default>
+      <summary>Ignore RemoteMenu.</summary>
+      <description>Shows quicklists in apps with their own custom menus.</description>
     </key>
   </schema>
 </schemalist>
