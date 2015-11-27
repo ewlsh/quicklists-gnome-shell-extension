@@ -1,5 +1,5 @@
 <schemalist>
-  <schema id="org.gnome.shell.extensions.quicklists" path="/org/gnome/shell/extensions/quicklists/">
+  <schema id="org.gnome.shell.extensions.quicklists-reborn" path="/org/gnome/shell/extensions/quicklists-reborn/">
     <key name="icon" type="b">
       <default>false</default>
       <summary>Show icon in menu</summary>

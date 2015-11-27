@@ -17,7 +17,7 @@ const Convenience = Me.imports.convenience;
 function init() {}
 
 function buildPrefsWidget() {
-    let settings = Convenience.getSettings(Me, 'quicklists');
+    let settings = Convenience.getSettings();
 
     let mainBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, margin: 20 });
 
@@ -106,7 +106,7 @@ function buildPrefsWidget() {
 
     let iconTypeLabel = new Gtk.Label({ label: "Type:", xalign: 0 });
     let iconTypeFullcolorRadio = new Gtk.RadioButton({ label: "Fullcolor" });
-    let iconTypeSymbolicRadio = new Gtk.RadioButton.new_with_label_from_widget(iconTypeFullcolorRadio, "Symbolic");
+    let iconTypeSymbolicRadio = new Gtk.RadioButton({label: "Symbolic"});
     grid.attach(iconTypeLabel, 1,6,1,1);
     grid.attach(iconTypeFullcolorRadio, 2,6, 1,1)
     grid.attach(iconTypeSymbolicRadio, 3,6, 1,1)
