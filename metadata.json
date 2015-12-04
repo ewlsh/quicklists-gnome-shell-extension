@@ -1,6 +1,6 @@
 {
   "description": "Simple implementation of quicklists for applications.",
-  "name": "Quicklists Reborn",
+  "name": "Quicklists: Reborn",
   "settings-schema": "org.gnome.shell.extensions.quicklists-reborn",
   "shell-version": [
     "3.18"

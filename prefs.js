@@ -78,6 +78,8 @@ const SettingsUI = new Lang.Class({
             subcheck.set_sensitive(value.get_active());
             this.settings.set_boolean(SETTINGS_APP_MENUS, value.get_active());
         }));
+
+        subcheck.set_sensitive(check.get_active());
         this.add(check);
         this.add(subcheck);
 
