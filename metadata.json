@@ -1,9 +1,9 @@
 {
-  "description": "Simple implementation of quicklists for applications.",
+  "description": "Adds application actions to app menus in the panel and dash. Recognizes Ayatana and FreeDesktop Project keys. Gnome natively recognizes FreeDesktop actions in 3.12+.",
   "name": "Quicklists: Reborn",
   "settings-schema": "org.gnome.shell.extensions.quicklists-reborn",
   "shell-version": [
-    "3.18"
+    "3.14", "3.16", "3.18"
   ],
   "url": "http://www.github.com/rockon999/quicklists-gnome-shell-extension/",
   "uuid": "quicklists-reborn@rockon999.github.io",
